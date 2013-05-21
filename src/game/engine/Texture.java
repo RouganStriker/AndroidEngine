@@ -50,7 +50,7 @@ public class Texture {
             istream = p_context.getAssets().open(filename);
             p_bitmap = BitmapFactory.decodeStream(istream,null,options);
             istream.close();
-            p_size.set(p_bitmap.getHeight(), p_bitmap.getWidth());
+            p_size.set(p_bitmap.getWidth(), p_bitmap.getHeight());
             p_textureName = filename;
         } catch (IOException e) {
             return false;
