@@ -14,6 +14,7 @@ import java.util.ListIterator;
 
 import android.app.Activity;
 import android.content.pm.ActivityInfo;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -48,8 +49,10 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
     private int p_numPoints; 
     private long p_preferredFrameRate, p_sleepTime;
     private Point p_screenSize;
-    private LinkedList<Sprite> p_group;
+    protected boolean p_collisionIgnoreSameID;
+    protected boolean debug_showCollisionBoundaries;
     
+    private LinkedList<Sprite> p_group;
     protected Button button1;
     protected Button button2;
 
@@ -72,6 +75,9 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
         p_sleepTime = 1000 / p_preferredFrameRate;
         p_pauseCount = 0;
         p_group = new LinkedList<Sprite>();
+        p_collisionIgnoreSameID = false;
+        
+        debug_showCollisionBoundaries = false;
     }
     
     /**
@@ -159,7 +165,7 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
     public void run() {
         Log.d("Engine","Engine.run start");
         
-        ListIterator<Sprite> iter=null, iterA=null, iterB=null;    
+        ListIterator<Sprite> iter=null;    
         
         Timer frameTimer = new Timer();
         int frameCount=0;
@@ -187,55 +193,7 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
             update();
             
             
-            /**
-             * Test for collisions in the sprite group.
-             * Note that this takes place outside of rendering.
-             */
-            iterA = p_group.listIterator();
-            while (iterA.hasNext()) {
-                Sprite sprA = (Sprite)iterA.next();
-                if (!sprA.getAlive()) continue;
-                if (!sprA.getCollidable()) continue;
-                    
-                /*
-                 * Improvement to prevent double collision testing
-                 */
-                if (sprA.getCollided()) 
-                    continue; //skip to next iterator
-                
-                //iterate the list again
-                iterB = p_group.listIterator(); 
-                while (iterB.hasNext()) {
-                    Sprite sprB = (Sprite)iterB.next();
-                    if (!sprB.getAlive()) continue;
-                    if (!sprB.getCollidable()) continue;
-                    
-                    /*
-                     * Improvement to prevent double collision testing
-                     */
-                    if (sprB.getCollided()) 
-                        continue; //skip to next iterator
-
-                    //do not collide with itself
-                    if (sprA == sprB) continue;
-                    
-                    /*
-                     * Ignore sprites with the same ID? This is an important
-                     * consideration. Decide if your game requires it or not.
-                     */
-                    if (sprA.getIdentifier() == sprB.getIdentifier())
-                        continue;
-                    
-                    if (collisionCheck(sprA, sprB)) {
-                        sprA.setCollided(true);
-                        sprA.setOffender(sprB);
-                        sprB.setCollided(true);
-                        sprB.setOffender(sprA);
-                        break; //exit while
-                    }
-                }
-            }
-
+            collisionTest();
             
             // begin drawing
             if (beginDrawing()) {
@@ -270,46 +228,7 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
                 endDrawing();
             }
             
-            /*
-             * Do some cleanup: collision notification, removing
-             * 'dead' sprites from the list.
-             */
-            iter = p_group.listIterator(); 
-            Sprite spr = null;
-            while (iter.hasNext()) {
-                spr = (Sprite)iter.next();
-                
-                //remove from list if flagged
-                if (!spr.getAlive()) {
-                    iter.remove();
-                    continue;
-                }
-                
-                //is collision enabled for this sprite?
-                if (spr.getCollidable()) {
-                    
-                    //has this sprite collided with anything?
-                    if (spr.getCollided()) {
-
-                        //is the target a valid object?
-                        if (spr.getOffender() != null) {
-
-                            /*
-                             * External func call: notify game of collision
-                             * (with validated offender)
-                             */
-                            collision(spr);
-
-                            //reset offender
-                            spr.setOffender(null);
-                        }
-
-                        //reset collided state
-                        spr.setCollided(false);
-                
-                    }
-                }
-            }
+            collisionCleanUp();
 
             // Calculate frame update time and sleep if necessary
             timeDiff = frameTimer.getElapsed() - startTime;
@@ -324,7 +243,53 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
         }//while
         Log.d("Engine","Engine.run end");
         System.exit(RESULT_OK);
-    }    
+    }
+
+	protected void collisionCleanUp() {
+		collisionCleanUp(p_group);
+	}
+
+	protected void collisionCleanUp(LinkedList<Sprite> sprites) {
+		/*
+		 * Do some cleanup: collision notification, removing
+		 * 'dead' sprites from the list.
+		 */
+		ListIterator<Sprite> iter = sprites.listIterator(); 
+		Sprite spr = null;
+		while (iter.hasNext()) {
+		    spr = (Sprite)iter.next();
+		    
+		    //remove from list if flagged
+		    if (!spr.getAlive()) {
+		        iter.remove();
+		        continue;
+		    }
+		    
+		    //is collision enabled for this sprite?
+		    if (spr.getCollidable()) {
+		        
+		        //has this sprite collided with anything?
+		        if (spr.getCollided()) {
+
+		            //is the target a valid object?
+		            if (spr.getOffender() != null) {
+
+		                /*
+		                 * External func call: notify game of collision
+		                 * (with validated offender)
+		                 */
+		                collision(spr);
+
+		                //reset offender
+		                spr.setOffender(null);
+		            }
+
+		            //reset collided state
+		            spr.setCollided(false);   
+		        }
+		    }
+		}
+	}    
     
     /**
      * BEGIN RENDERING
@@ -338,6 +303,62 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
         return true;
     }
     
+    protected void collisionTest(){
+    	collisionTest(p_group, p_group);
+    }
+
+    protected void collisionTest(LinkedList<Sprite> spritesA, LinkedList<Sprite> spritesB){
+        /**
+         * Test for collision between sprite group A and sprite group B.
+         * Note that this takes place outside of rendering.
+         */
+    	ListIterator<Sprite> iterA=null, iterB=null;
+    	
+        iterA = spritesA.listIterator();
+        while (iterA.hasNext()) {
+            Sprite sprA = (Sprite)iterA.next();
+            if (!sprA.getAlive()) continue;
+            if (!sprA.getCollidable()) continue;
+                
+            /*
+             * Improvement to prevent double collision testing
+             */
+            if (sprA.getCollided()) 
+                continue; //skip to next iterator
+            
+            //iterate the list again
+            iterB = spritesB.listIterator(); 
+            while (iterB.hasNext()) {
+                Sprite sprB = (Sprite)iterB.next();
+                if (!sprB.getAlive()) continue;
+                if (!sprB.getCollidable()) continue;
+                
+                /*
+                 * Improvement to prevent double collision testing
+                 */
+                if (sprB.getCollided()) 
+                    continue; //skip to next iterator
+
+                //do not collide with itself
+                if (sprA == sprB) continue;
+                
+                /*
+                 * Ignore sprites with the same ID? This is an important
+                 * consideration. Decide if your game requires it or not.
+                 */
+                if (p_collisionIgnoreSameID && sprA.getIdentifier() == sprB.getIdentifier())
+                    continue;
+                
+                if (collisionCheck(sprA, sprB)) {
+                    sprA.setCollided(true);
+                    sprA.setOffender(sprB);
+                    sprB.setCollided(true);
+                    sprB.setOffender(sprA);
+                    break; //exit while
+                }
+            }
+        }
+    }
     /**
      * END RENDERING
      * Unlock the canvas to free it for future use.
@@ -584,10 +605,31 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
      * Collision detection 
      */
     
-    public boolean collisionCheck(Sprite A, Sprite B) { //change to RectF
-        boolean test = RectF.intersects(A.getBoundsScaled(), 
-                B.getBoundsScaled()); 
-        return test;
+    public boolean collisionCheck(Sprite A, Sprite B) {
+    	RectF sprABounds = A.getBounds();
+    	RectF sprBBounds = B.getBounds();
+    	RectF intersection = new RectF();
+    	
+        if(intersection.setIntersect(sprABounds, sprBBounds)) {
+        	// Perform pixel check
+        	Bitmap sprAIntersection = Bitmap.createBitmap(A.getTexture().getBitmap(), (int)(intersection.left - sprABounds.left), (int)(intersection.top - sprABounds.top), (int)intersection.width(), (int)intersection.height());
+        	int[] sprAIntersectionPixels = new int[(int) (sprAIntersection.getHeight() * sprAIntersection.getWidth())];
+        	Bitmap sprBIntersection = Bitmap.createBitmap(B.getTexture().getBitmap(), (int)(intersection.left - sprBBounds.left), (int)(intersection.top - sprBBounds.top), (int)intersection.width(), (int)intersection.height());
+        	int[] sprBIntersectionPixels = new int[(int) (sprBIntersection.getHeight() * sprBIntersection.getWidth())];
+
+        	sprAIntersection.getPixels(sprAIntersectionPixels, 0, sprAIntersection.getWidth(), 0, 0, sprAIntersection.getWidth(), sprAIntersection.getHeight());
+        	sprBIntersection.getPixels(sprBIntersectionPixels, 0, sprBIntersection.getWidth(), 0, 0, sprBIntersection.getWidth(), sprBIntersection.getHeight());
+        	
+        	for(int i = 0; i < sprAIntersectionPixels.length; i++) {
+        		int pixelA = sprAIntersectionPixels[i];
+        		int pixelB = sprBIntersectionPixels[i];
+        		if(pixelA != Color.TRANSPARENT && pixelB != Color.TRANSPARENT) {
+        			return true;
+        		}
+        	}
+        }
+
+        return false;
     }
     
     public static Texture loadTexture(String textureName){
@@ -613,6 +655,10 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
 		spr.setTexture(loadTexture(textureName));
 
 		return spr;
+	}
+	
+	public boolean getShowCollisionBoundaries(){
+		return debug_showCollisionBoundaries;
 	}
 } 
 

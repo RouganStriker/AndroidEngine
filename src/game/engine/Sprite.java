@@ -7,6 +7,7 @@ import java.util.LinkedList;
 import java.util.ListIterator;
 import android.graphics.*; 
 import android.graphics.Bitmap.Config;
+import android.graphics.Paint.Style;
 
 public class Sprite {
     private Engine p_engine;
@@ -134,6 +135,14 @@ public class Sprite {
 	        
 	        //draw frame bitmap onto screen
 	        p_canvas.drawBitmap(p_frameBitmap, p_matrix, p_paint);
+	        
+	        if(p_collidable && Engine.getInstance().getShowCollisionBoundaries()){
+	        	Paint paint = new Paint();
+	        	paint.setStyle(Style.STROKE);
+	        	paint.setColor(Color.RED);
+	        	paint.setStrokeWidth(1);
+	        	p_canvas.drawRect(getBounds(), paint);
+	        }
     	}
     }
     

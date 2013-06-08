@@ -30,5 +30,4 @@ public class AlphaAnimation extends Animation {
         }
         return modified;
     }
-
 }
