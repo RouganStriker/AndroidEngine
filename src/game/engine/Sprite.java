@@ -363,5 +363,12 @@ public class Sprite {
     public LinkedList<Animation> getAnimations(){
     	return p_anims;
     }
+
+	public void destroy() {
+		p_canvas = null;
+		if(p_frameBitmap != null)
+			p_frameBitmap.recycle();
+		p_texture.clearBitmap();
+	}
 }
 

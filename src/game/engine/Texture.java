@@ -39,7 +39,8 @@ public class Texture {
     }
     
     public void clearBitmap() {
-        p_bitmap = null;
+        //p_bitmap = null;
+        p_bitmap.recycle();
     }
     
     public boolean loadFromAsset(String filename) {
@@ -47,6 +48,7 @@ public class Texture {
         BitmapFactory.Options options = new BitmapFactory.Options();
         options.inPreferredConfig = Bitmap.Config.ARGB_8888;
         try {
+        	
             istream = p_context.getAssets().open(filename);
             p_bitmap = BitmapFactory.decodeStream(istream,null,options);
             istream.close();
@@ -58,5 +60,14 @@ public class Texture {
         return true;
     }
     
+    public boolean loadFromDrawable(int fileId) {
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+        p_bitmap = BitmapFactory.decodeResource(p_context.getResources(), fileId, options);
+        p_size.set(p_bitmap.getWidth(), p_bitmap.getHeight());
+        p_textureName = Integer.toString(fileId);
+        
+        return (p_bitmap != null);
+    }  
 }
 

@@ -13,6 +13,10 @@ import java.util.LinkedList;
 import java.util.ListIterator;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -41,7 +45,7 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
     private SurfaceView p_view;
     private Canvas p_canvas;
     private Thread p_thread; 
-    private boolean p_running, p_paused; 
+    private boolean p_running, p_paused, p_forcedPaused; 
     private int p_pauseCount;
     private Paint p_paintDraw, p_paintFont;
     private Typeface p_typeface;
@@ -55,6 +59,8 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
     private LinkedList<Sprite> p_group;
     protected Button button1;
     protected Button button2;
+    
+    private Bitmap sprAIntersection, sprBIntersection;
 
     /**
      * Engine constructor
@@ -76,7 +82,6 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
         p_pauseCount = 0;
         p_group = new LinkedList<Sprite>();
         p_collisionIgnoreSameID = false;
-        
         debug_showCollisionBoundaries = false;
     }
     
@@ -105,8 +110,8 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         
         //set default screen orientation
-        //setScreenOrientation(ScreenModes.LANDSCAPE);
-        
+        setScreenOrientation(ScreenModes.LANDSCAPE);
+
         /**
          * Call abstract init method in sub-class
          */
@@ -175,7 +180,7 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
         
         while (p_running) {
             // Process frame only if not paused
-            if (p_paused) continue;
+            if (p_paused || p_forcedPaused) continue;
             
             // Calculate frame rate
             frameCount++;
@@ -386,6 +391,21 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
         super.onPause();
         p_paused = true;
         p_pauseCount++;
+    }
+    
+    @Override
+    protected void onDestroy() {
+    	Log.d("Engine","Engine.onDestroy");
+        super.onDestroy();
+        
+        ListIterator<Sprite> iter = p_group.listIterator(); 
+        while (iter.hasNext()) {
+            Sprite spr = (Sprite)iter.next();
+            spr.destroy();
+        }
+        
+        sprAIntersection.recycle();
+        sprBIntersection.recycle();
     }
     
     /**
@@ -612,9 +632,9 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
     	
         if(intersection.setIntersect(sprABounds, sprBBounds)) {
         	// Perform pixel check
-        	Bitmap sprAIntersection = Bitmap.createBitmap(A.getTexture().getBitmap(), (int)(intersection.left - sprABounds.left), (int)(intersection.top - sprABounds.top), (int)intersection.width(), (int)intersection.height());
+        	sprAIntersection = Bitmap.createBitmap(A.getTexture().getBitmap(), (int)(intersection.left - sprABounds.left), (int)(intersection.top - sprABounds.top), (int)intersection.width(), (int)intersection.height());
         	int[] sprAIntersectionPixels = new int[(int) (sprAIntersection.getHeight() * sprAIntersection.getWidth())];
-        	Bitmap sprBIntersection = Bitmap.createBitmap(B.getTexture().getBitmap(), (int)(intersection.left - sprBBounds.left), (int)(intersection.top - sprBBounds.top), (int)intersection.width(), (int)intersection.height());
+        	sprBIntersection = Bitmap.createBitmap(B.getTexture().getBitmap(), (int)(intersection.left - sprBBounds.left), (int)(intersection.top - sprBBounds.top), (int)intersection.width(), (int)intersection.height());
         	int[] sprBIntersectionPixels = new int[(int) (sprBIntersection.getHeight() * sprBIntersection.getWidth())];
 
         	sprAIntersection.getPixels(sprAIntersectionPixels, 0, sprAIntersection.getWidth(), 0, 0, sprAIntersection.getWidth(), sprAIntersection.getHeight());
@@ -627,6 +647,9 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
         			return true;
         		}
         	}
+        	
+        	sprAIntersection.eraseColor(Color.TRANSPARENT);
+        	sprBIntersection.eraseColor(Color.TRANSPARENT);
         }
 
         return false;
@@ -637,6 +660,17 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
 		
 		if(!texture.loadFromAsset(textureName)){
 			Log.e("FATAL ERROR", "Failed to load" + textureName);
+	        System.exit(0);
+		}
+		
+		return texture;
+	}
+    
+    public static Texture loadTexture(int textureId){
+		Texture texture = new Texture(instance);
+		
+		if(!texture.loadFromDrawable(textureId)){
+			Log.e("FATAL ERROR", "Failed to load" + textureId);
 	        System.exit(0);
 		}
 		
@@ -660,6 +694,10 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
 	public boolean getShowCollisionBoundaries(){
 		return debug_showCollisionBoundaries;
 	}
-} 
+	
+	protected void setPauseState(boolean bPause) {
+		p_forcedPaused = bPause;
+	}
+}
 
 
