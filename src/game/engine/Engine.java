@@ -45,7 +45,8 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
     private SurfaceView p_view;
     private Canvas p_canvas;
     private Thread p_thread; 
-    private boolean p_running, p_paused, p_forcedPaused; 
+    private boolean p_running, p_paused;
+    private boolean p_forceDraw; 	// To force a draw even if the thread is paused
     private int p_pauseCount;
     private Paint p_paintDraw, p_paintFont;
     private Typeface p_typeface;
@@ -83,6 +84,7 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
         p_group = new LinkedList<Sprite>();
         p_collisionIgnoreSameID = false;
         debug_showCollisionBoundaries = false;
+        p_forceDraw = false;
     }
     
     /**
@@ -180,7 +182,15 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
         
         while (p_running) {
             // Process frame only if not paused
-            if (p_paused || p_forcedPaused) continue;
+            if (p_paused) {
+            	if(p_forceDraw) {
+            		if(p_view.getHolder().getSurface().isValid()) {
+            			drawCanvas(frameRate);
+            			p_forceDraw = false;
+            		}
+            	}
+            	continue;
+            }
             
             // Calculate frame rate
             frameCount++;
@@ -199,39 +209,8 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
             
             
             collisionTest();
-            
-            // begin drawing
-            if (beginDrawing()) {
- 
-                // Call abstract draw method in sub-class
-                draw();
-                
-               
-                /**
-                 * Draw the group entities with transforms
-                 */
-                iter = p_group.listIterator(); 
-                while (iter.hasNext()) {
-                    Sprite spr = (Sprite)iter.next();
-                    if (spr.getAlive()) {
-                        spr.animate();
-                        spr.draw();
-                    }
-                }
 
-                /**
-                 * Print some engine debug info.
-                 */
-                int x = p_canvas.getWidth()-150;
-                p_canvas.drawText("ENGINE", x, 20, p_paintFont);
-                p_canvas.drawText(toString(frameRate) + " FPS", x, 40, 
-                    p_paintFont);
-                p_canvas.drawText("Pauses: " + toString(p_pauseCount), 
-                    x, 60, p_paintFont);
-                
-                // done drawing
-                endDrawing();
-            }
+            drawCanvas(frameRate);
             
             collisionCleanUp();
 
@@ -249,6 +228,42 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
         Log.d("Engine","Engine.run end");
         System.exit(RESULT_OK);
     }
+
+	protected void drawCanvas(int frameRate) {
+		ListIterator<Sprite> iter;
+		// begin drawing
+		if (beginDrawing()) {
+      
+		    // Call abstract draw method in sub-class
+		    draw();
+		    
+		   
+		    /**
+		     * Draw the group entities with transforms
+		     */
+		    iter = p_group.listIterator(); 
+		    while (iter.hasNext()) {
+		        Sprite spr = (Sprite)iter.next();
+		        if (spr.getAlive()) {
+		            spr.animate();
+		            spr.draw();
+		        }
+		    }
+
+		    /**
+		     * Print some engine debug info.
+		     */
+		    int x = p_canvas.getWidth()-150;
+		    p_canvas.drawText("ENGINE", x, 20, p_paintFont);
+		    p_canvas.drawText(toString(frameRate) + " FPS", x, 40, 
+		        p_paintFont);
+		    p_canvas.drawText("Pauses: " + toString(p_pauseCount), 
+		        x, 60, p_paintFont);
+		    
+		    // done drawing
+		    endDrawing();
+		}
+	}
 
 	protected void collisionCleanUp() {
 		collisionCleanUp(p_group);
@@ -379,8 +394,12 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
     public void onResume() {
         Log.d("Engine","Engine.onResume");
         super.onResume();
-        p_paused = false;
+        onResumeBehaviour();
     }
+
+	protected void onResumeBehaviour() {
+		p_paused = false;
+	}
 
     /**
      * Activity.onPause event method
@@ -389,9 +408,13 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
     public void onPause() {
         Log.d("Engine","Engine.onPause");
         super.onPause();
-        p_paused = true;
-        p_pauseCount++;
+        onPauseBehaviour();
     }
+
+	protected void onPauseBehaviour() {
+		p_paused = true;
+		p_pauseCount++;
+	}
     
     @Override
     protected void onDestroy() {
@@ -697,8 +720,16 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
 		return debug_showCollisionBoundaries;
 	}
 	
-	protected void setPauseState(boolean bPause) {
-		p_forcedPaused = bPause;
+	protected boolean isPaused(){
+		return p_paused;
+	}
+
+	protected void setPaused(boolean bPause) {
+		p_paused = bPause;
+	}
+	
+	protected void enableForceRedraw() {
+		p_forceDraw = true;
 	}
 }
 
