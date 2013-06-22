@@ -404,8 +404,10 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
             spr.destroy();
         }
         
-        sprAIntersection.recycle();
-        sprBIntersection.recycle();
+        if(sprAIntersection != null)
+        	sprAIntersection.recycle();
+        if(sprBIntersection != null)
+        	sprBIntersection.recycle();
     }
     
     /**
