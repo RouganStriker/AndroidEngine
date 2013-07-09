@@ -68,6 +68,17 @@ public class Texture {
         p_textureName = Integer.toString(fileId);
         
         return (p_bitmap != null);
-    }  
+    }
+    
+    public boolean loadFromBitmap(Bitmap bitmap) {
+    	if(bitmap != null) {
+	        p_bitmap = bitmap;
+	        p_size.set(p_bitmap.getWidth(), p_bitmap.getHeight());
+	        p_textureName = "";
+	        return true;
+    	}
+    	
+    	return false;
+    }
 }
 

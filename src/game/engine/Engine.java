@@ -19,6 +19,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
 import android.graphics.Bitmap;
+import android.graphics.Bitmap.Config;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -43,7 +44,8 @@ import android.widget.Button;
 public abstract class Engine extends Activity implements Runnable, OnTouchListener {
 	protected static Engine instance;
     private SurfaceView p_view;
-    private Canvas p_canvas;
+    private Canvas p_canvas, p_drawing_canvas;
+    private Bitmap p_canvas_ss;
     private Thread p_thread; 
     private boolean p_running, p_paused;
     private boolean p_forceDraw; 	// To force a draw even if the thread is paused
@@ -56,7 +58,7 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
     private Point p_screenSize;
     protected boolean p_collisionIgnoreSameID;
     protected boolean debug_showCollisionBoundaries;
-    
+    protected boolean debug_showFPS;
     private LinkedList<Sprite> p_group;
     protected Button button1;
     protected Button button2;
@@ -84,6 +86,7 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
         p_group = new LinkedList<Sprite>();
         p_collisionIgnoreSameID = false;
         debug_showCollisionBoundaries = false;
+        debug_showFPS = false;
         p_forceDraw = false;
     }
     
@@ -148,6 +151,9 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
         getWindowManager().getDefaultDisplay().getMetrics(dm);
         p_screenSize = new Point(dm.widthPixels,dm.heightPixels);
         
+        p_canvas_ss = Bitmap.createBitmap(p_screenSize.x, p_screenSize.y, Config.RGB_565);
+        p_drawing_canvas = new Canvas();
+        p_drawing_canvas.setBitmap(p_canvas_ss);
         
         // Call abstract load method in sub-class!
         load();
@@ -253,13 +259,12 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
 		    /**
 		     * Print some engine debug info.
 		     */
-		    int x = p_canvas.getWidth()-150;
-		    p_canvas.drawText("ENGINE", x, 20, p_paintFont);
-		    p_canvas.drawText(toString(frameRate) + " FPS", x, 40, 
-		        p_paintFont);
-		    p_canvas.drawText("Pauses: " + toString(p_pauseCount), 
-		        x, 60, p_paintFont);
-		    
+		    if(debug_showFPS) {
+			    int x = p_drawing_canvas.getWidth()-150;
+			    p_drawing_canvas.drawText("ENGINE", x, 20, p_paintFont);
+			    p_drawing_canvas.drawText(toString(frameRate) + " FPS", x, 40, p_paintFont);
+			    p_drawing_canvas.drawText("Pauses: " + toString(p_pauseCount), x, 60, p_paintFont);
+		    }
 		    // done drawing
 		    endDrawing();
 		}
@@ -384,6 +389,7 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
      * Unlock the canvas to free it for future use.
      */
     private void endDrawing() {
+    	p_canvas.drawBitmap(p_canvas_ss, 0, 0, null);
         p_view.getHolder().unlockCanvasAndPost(p_canvas);
     }
     
@@ -431,6 +437,8 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
         	sprAIntersection.recycle();
         if(sprBIntersection != null)
         	sprBIntersection.recycle();
+        if(p_canvas_ss != null)
+        	p_canvas_ss.recycle();
     }
     
     /**
@@ -485,7 +493,11 @@ public abstract class Engine extends Activity implements Runnable, OnTouchListen
     }
 
     public Canvas getCanvas() {
-        return p_canvas;
+        return p_drawing_canvas;
+    }
+    
+    public Bitmap getScreenShot(){
+    	return p_canvas_ss;
     }
     
     public void setFrameRate(int rate) {
